@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+PyMuPDF
+PyPDF2
+paramiko

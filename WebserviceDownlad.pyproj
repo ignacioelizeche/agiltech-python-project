@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>ae6a58d1-d50c-4c9e-bba1-b875704ae136</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>WebserviceDownlad.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -23,7 +23,11 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="WebserviceDownlad.py" />
+    <Compile Include="main.py" />
+    <Compile Include="services\merge_pdf.py" />
+    <Compile Include="services\compress_pdf.py" />
+    <Compile Include="services\__init__.py" />
+    <Compile Include="services\sftp_service.py" />
   </ItemGroup>
   <ItemGroup>
     <Interpreter Include="env\">
@@ -38,6 +42,12 @@
   </ItemGroup>
   <ItemGroup>
     <InterpreterReference Include="Global|PythonCore|3.13" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="requirements.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="services\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
