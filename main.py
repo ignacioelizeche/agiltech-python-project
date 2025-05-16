@@ -53,7 +53,7 @@ class CompressRequest(BaseModel):
 @app.post("/compresspdf")
 async def compress_pdf_endpoint(request: CompressRequest):
     try:
-        output_path = compress_pdf(request.file)
+        output_path = compress_pdf(request.file, download_path="./downloads")
         return FileResponse(
             output_path,
             media_type='application/pdf',
