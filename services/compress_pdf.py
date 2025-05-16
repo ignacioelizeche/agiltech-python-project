@@ -3,7 +3,7 @@ import tempfile
 import base64
 from fastapi import HTTPException
 
-def compress_pdf(base64_pdf: str) -> str:
+def compress_pdf(base64_pdf: str, download_path: str) -> str:
     try:
         # Crear archivo temporal del PDF original
         pdf_data = base64.b64decode(base64_pdf)
