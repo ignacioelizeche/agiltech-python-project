@@ -64,6 +64,21 @@ async def compress_pdf_endpoint(request: CompressRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/mergeandcompresspdf")
+async def merge_pdfs(files: List[str]):
+    try:
+        output_path = compress_pdf(validate_and_merge_pdfs(files, "./downloads"), download_path="./downloads")
+        return FileResponse(
+            output_path,
+            media_type='application/pdf',
+            headers={"Content-Disposition": "attachment; filename=merged.pdf"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)
