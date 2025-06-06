@@ -14,7 +14,7 @@ def validate_and_merge_pdfs(files: List[str], download_path: str) -> str:
         try:
             PdfReader(BytesIO(pdf_data))
         except Exception:
-            raise HTTPException(status_code=400, detail=f"El archivo {idx+1} no es un PDF v�lido.")
+            raise HTTPException(status_code=400, detail=f"El archivo {idx+1} no es un PDF valido.")
 
         pdf_path = os.path.join(download_path, f"file_{idx + 1}.pdf")
         with open(pdf_path, "wb") as pdf_file:

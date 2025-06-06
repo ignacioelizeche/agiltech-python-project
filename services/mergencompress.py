@@ -47,7 +47,7 @@ def validate_merge_and_compress_pdfs(files: List[str], download_path: str) -> st
             pdf_data = base64.b64decode(file_base64)
             PdfReader(BytesIO(pdf_data))
         except Exception:
-            raise HTTPException(status_code=400, detail=f"El archivo {idx+1} no es un PDF válido.")
+            raise HTTPException(status_code=400, detail=f"El archivo {idx+1} no es un PDF valido.")
 
         pdf_path = os.path.join(download_path, f"file_{idx + 1}.pdf")
         with open(pdf_path, "wb") as f:
@@ -80,7 +80,7 @@ def validate_merge_and_compress_pdfs(files: List[str], download_path: str) -> st
             img_page.insert_image(page.rect, pixmap=pix)
 
         if len(new_doc) == 0:
-            raise HTTPException(status_code=400, detail="El PDF resultante está vacío después de la compresión.")
+            raise HTTPException(status_code=400, detail="El PDF resultante esta vacio despues de la compresion.")
 
         new_doc.save(compressed_path, garbage=4, deflate=True, clean=True)
         new_doc.close()

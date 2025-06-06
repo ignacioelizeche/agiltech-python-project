@@ -1,72 +1,34 @@
-import fitz  # PyMuPDF
+# services/compress_pdf.py
+import subprocess
 import tempfile
 import base64
-from fastapi import HTTPException
+import os
 
 
-def compress_pdf(base64_pdf: str, download_path: str) -> str:
-    try:
-        # Decodificar base64
-        pdf_data = base64.b64decode(base64_pdf)
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_in:
-            tmp_in.write(pdf_data)
-            input_path = tmp_in.name
+def compress_pdf(pdf_base64: str) -> str:
+    pdf_bytes = base64.b64decode(pdf_base64)
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_out:
-            output_path = tmp_out.name
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as input_file:
+        input_file.write(pdf_bytes)
+        input_file_path = input_file.name
 
-        doc = fitz.open(input_path)
-        new_doc = fitz.open()
+    output_file_path = input_file_path.replace(".pdf", "_compressed.pdf")
 
-        for page in doc:
-            if is_blank_page(page):
-                continue
+    gs_command = [
+        "gs",  # En Windows puede ser "gswin64c" o el path completo a ghostscript
+        "-sDEVICE=pdfwrite",
+        "-dCompatibilityLevel=1.4",
+        "-dPDFSETTINGS=/ebook",  # /screen, /ebook, /printer, /prepress
+        "-dNOPAUSE",
+        "-dQUIET",
+        "-dBATCH",
+        f"-sOutputFile={output_file_path}",
+        input_file_path,
+    ]
 
-            # Renderizar como imagen comprimida
-            pix = page.get_pixmap(matrix=fitz.Matrix(0.7, 0.7), alpha=False)
-            img_page = new_doc.new_page(width=page.rect.width, height=page.rect.height)
-            img_page.insert_image(page.rect, pixmap=pix)
+    subprocess.run(gs_command, check=True)
 
-        if len(new_doc) == 0:
-            raise HTTPException(status_code=400)
+    # Borramos el archivo original
+    os.remove(input_file_path)
 
-        new_doc.save(output_path, garbage=4, deflate=True, clean=True)
-        new_doc.close()
-        doc.close()
-
-        return output_path
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al comprimir el PDF: {str(e)}")
-
-
-def is_blank_page(page, margin_ratio=0.2, min_chars=10):
-    height = page.rect.height
-    header_limit = height * margin_ratio
-    footer_limit = height * (1 - margin_ratio)
-
-    def is_central(y): return header_limit < y < footer_limit
-
-    blocks = page.get_text("dict")["blocks"]
-    for b in blocks:
-        if b["type"] != 0:
-            continue
-        for line in b["lines"]:
-            for span in line["spans"]:
-                y = span["bbox"][1]
-                if is_central(y) and len(span["text"].strip()) >= min_chars:
-                    return False
-
-    for d in page.get_drawings():
-        yc = (d["rect"].y0 + d["rect"].y1) / 2
-        if is_central(yc):
-            return False
-
-    for img in page.get_images(full=True):
-        xref = img[0]
-        for r in page.get_image_rects(xref):
-            yc = (r.y0 + r.y1) / 2
-            if is_central(yc):
-                return False
-
-    return True
+    return output_file_path

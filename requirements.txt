@@ -3,3 +3,4 @@ uvicorn
 PyMuPDF
 PyPDF2
 paramiko
+pikepdf

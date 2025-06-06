@@ -53,17 +53,15 @@ class CompressRequest(BaseModel):
 @app.post("/compresspdf")
 async def compress_pdf_endpoint(request: CompressRequest):
     try:
-        output_path = compress_pdf(request.file, download_path="./downloads")
+        compressed_pdf_path = compress_pdf(request.file)
         return FileResponse(
-            output_path,
-            media_type='application/pdf',
-            headers={"Content-Disposition": "attachment; filename=compressed.pdf"}
+            compressed_pdf_path,
+            media_type="application/pdf",
+            filename="compressed.pdf",
+            background=None,  # Podés usar BackgroundTasks para borrar el archivo luego si querés
         )
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 class PDFList(BaseModel):
     files: List[str]
