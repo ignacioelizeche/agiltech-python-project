@@ -13,18 +13,25 @@ def compress_pdf(pdf_base64: str) -> str:
         input_file_path = input_file.name
 
     output_file_path = input_file_path.replace(".pdf", "_compressed.pdf")
-
     gs_command = [
-        "gs",  # En Windows puede ser "gswin64c" o el path completo a ghostscript
+        "gs",  # En Windows: cambiar a "gswin64c" si hace falta
         "-sDEVICE=pdfwrite",
         "-dCompatibilityLevel=1.4",
-        "-dPDFSETTINGS=/ebook",  # /screen, /ebook, /printer, /prepress
+        "-dPDFSETTINGS=/ebook",  # El más agresivo (puede pixelar imágenes)
         "-dNOPAUSE",
         "-dQUIET",
         "-dBATCH",
+        "-dColorImageDownsampleType=/Bicubic",
+        "-dColorImageResolution=72",  # Baja resolución
+        "-dGrayImageDownsampleType=/Bicubic",
+        "-dGrayImageResolution=72",
+        "-dMonoImageDownsampleType=/Subsample",
+        "-dMonoImageResolution=72",
         f"-sOutputFile={output_file_path}",
         input_file_path,
     ]
+# /screen, /ebook, /printer, /prepress
+
 
     subprocess.run(gs_command, check=True)
 
