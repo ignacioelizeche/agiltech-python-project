@@ -177,3 +177,4 @@ For major changes, please open an issue first to discuss your ideas.
 
 Created by [Ignacio Elizeche](https://github.com/ignacioelizeche)
 
+---
