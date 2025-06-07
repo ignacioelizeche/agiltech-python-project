@@ -177,7 +177,3 @@ For major changes, please open an issue first to discuss your ideas.
 
 Created by [Ignacio Elizeche](https://github.com/ignacioelizeche)
 
-```
-
-Let me know if you'd also like me to generate a `requirements.txt` file or a `Dockerfile` for easy deployment.
-```
