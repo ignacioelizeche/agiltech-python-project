@@ -41,14 +41,11 @@ async def merge_pdfs(files: List[str]):
 @app.post("/compresspdf")
 async def compress_pdf_endpoint(request: CompressRequest):
     try:
-        compressed_pdf_path = compress_pdf(request.file)
-        return FileResponse(
-            compressed_pdf_path,
-            media_type="application/pdf",
-            filename="compressed.pdf",
-        )
+        compressed_base64 = compress_pdf(request.file)
+        return {"compressed_pdf_base64": compressed_base64}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/merge-compress")
 def merge_and_compress(data: PDFList):
