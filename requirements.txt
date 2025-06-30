@@ -4,3 +4,7 @@ PyMuPDF
 PyPDF2
 paramiko
 pikepdf
+ocrmypdf
+pillow 
+img2pdf
+pdf2image 

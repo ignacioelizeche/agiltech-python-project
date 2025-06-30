@@ -1,51 +1,59 @@
-# services/compress_pdf.py
-import subprocess
-import tempfile
 import base64
+import pypdfium2 as pdfium
+from pathlib import Path
+from PIL import Image
+import img2pdf
 import os
+import tempfile
 
+def compress_pdf_base64(pdf_base64: str, escala: int = 2, calidad: int = 70) -> str:
+    """
+    Comprime un archivo PDF recibido en base64 y retorna el PDF comprimido también en base64.
 
-def compress_pdf(pdf_base64: str) -> str:
-    # Decodifica el PDF en base64 a bytes
-    pdf_bytes = base64.b64decode(pdf_base64)
+    Parámetros:
+    - pdf_base64: PDF original como string base64
+    - escala: factor de escala para renderizar imágenes desde el PDF
+    - calidad: calidad JPEG de compresión (1-100)
 
-    # Crea un archivo temporal con el PDF original
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as input_file:
-        input_file.write(pdf_bytes)
-        input_file_path = input_file.name
+    Retorna:
+    - PDF comprimido como string en base64
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        input_pdf_path = tmp_path / "original.pdf"
+        output_pdf_path = tmp_path / "comprimido.pdf"
 
-    # Define el nombre del archivo de salida
-    output_file_path = input_file_path.replace(".pdf", "_compressed.pdf")
+        # Guardar el PDF original desde base64
+        with open(input_pdf_path, "wb") as f:
+            f.write(base64.b64decode(pdf_base64))
 
-    # Comando de Ghostscript
-    gs_command = [
-        "gs",  # En Windows puede que necesites "gswin64c"
-        "-sDEVICE=pdfwrite",
-        "-dCompatibilityLevel=1.4",
-        "-dPDFSETTINGS=/ebook",
-        "-dNOPAUSE",
-        "-dQUIET",
-        "-dBATCH",
-        "-dColorImageDownsampleType=/Bicubic",
-        "-dColorImageResolution=72",
-        "-dGrayImageDownsampleType=/Bicubic",
-        "-dGrayImageResolution=72",
-        "-dMonoImageDownsampleType=/Subsample",
-        "-dMonoImageResolution=72",
-        f"-sOutputFile={output_file_path}",
-        input_file_path,
-    ]
+        nombre_pdf_sin_extension = input_pdf_path.stem
+        pdf = pdfium.PdfDocument(str(input_pdf_path))
+        cantidad_paginas = len(pdf)
+        imagenes = []
 
-    # Ejecuta la compresión
-    subprocess.run(gs_command, check=True)
+        # Extraer cada página como imagen
+        for i in range(cantidad_paginas):
+            nombre_imagen = tmp_path / f"{nombre_pdf_sin_extension}_{i+1}.jpg"
+            pagina = pdf.get_page(i)
+            imagen_pil = pagina.render(scale=escala).to_pil()
+            imagen_pil.save(nombre_imagen)
+            imagenes.append(nombre_imagen)
 
-    # Lee el archivo comprimido como bytes
-    with open(output_file_path, "rb") as f:
-        compressed_pdf_bytes = f.read()
+        # Comprimir las imágenes
+        imagenes_comprimidas = []
+        for img_path in imagenes:
+            salida = img_path.with_stem(img_path.stem + "_comprimida")
+            imagen = Image.open(img_path)
+            imagen.save(salida, optimize=True, quality=calidad)
+            imagenes_comprimidas.append(salida)
 
-    # Limpieza de archivos temporales
-    os.remove(input_file_path)
-    os.remove(output_file_path)
+        # Crear PDF comprimido desde imágenes comprimidas
+        with open(output_pdf_path, "wb") as f:
+            f.write(img2pdf.convert([str(p) for p in imagenes_comprimidas]))
 
-    # Codifica el PDF comprimido a base64 y lo devuelve
-    return base64.b64encode(compressed_pdf_bytes).decode("utf-8")
+        # Leer el PDF final y convertir a base64
+        with open(output_pdf_path, "rb") as f:
+            pdf_final_base64 = base64.b64encode(f.read()).decode("utf-8")
+
+        return pdf_final_base64

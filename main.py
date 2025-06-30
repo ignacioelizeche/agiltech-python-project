@@ -11,3 +11,7 @@ app = FastAPI(
 #Apis for the diferent tools
 app.mount("/pdftools", pdf_app)
 app.mount("/sftptools", sftp_app)
+
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8080, reload=True)

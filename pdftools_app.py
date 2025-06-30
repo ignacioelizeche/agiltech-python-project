@@ -4,9 +4,11 @@ from pydantic import BaseModel
 from typing import List
 import base64
 import os
+from pydantic import BaseModel
+from typing import Optional
 
 from services.merge_pdf import validate_and_merge_pdfs
-from services.compress_pdf import compress_pdf
+from services.compress_pdf import compress_pdf_base64
 from services.mergencompress import validate_merge_and_compress_pdfs
 
 app = FastAPI(
@@ -19,20 +21,24 @@ app = FastAPI(
 )
 
 class CompressRequest(BaseModel):
-    file: str  # Base64
+    filebase64: str  # Base64 obligatorio
+    quality: Optional[str] = None  # Calidad opcional: high, medium, low
 
 class PDFList(BaseModel):
-    files: List[str]
+    filesbase64: List[str]
 
 @app.post("/mergepdf")
-async def merge_pdfs(files: List[str]):
+async def merge_pdfs(payload: PDFList):  # <--- receives JSON object
     try:
-        output_path = validate_and_merge_pdfs(files, "./downloads")
-        return FileResponse(
-            output_path,
-            media_type='application/pdf',
-            headers={"Content-Disposition": "attachment; filename=merged.pdf"}
-        )
+        output_path = validate_and_merge_pdfs(payload.filesbase64, "/tmp")
+        # Read and encode to base64
+        with open(output_path, "rb") as f:
+            merged_pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
+
+        return {
+            "success": True,
+            "filebase64": merged_pdf_base64
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -41,22 +47,31 @@ async def merge_pdfs(files: List[str]):
 @app.post("/compresspdf")
 async def compress_pdf_endpoint(request: CompressRequest):
     try:
-        compressed_base64 = compress_pdf(request.file)
-        return {"compressed_pdf_base64": compressed_base64}
+        quality_str = (request.quality or "medium").lower()
+
+        # Mapeo de calidad a número
+        quality_map = {
+            "low": 40,
+            "medium": 70,
+            "high": 90
+        }
+        quality = quality_map.get(quality_str, 70)
+
+        compressed_base64 = compress_pdf_base64(request.filebase64, calidad=quality)
+        return {"success": True, "filebase64": compressed_base64}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/merge-compress")
 def merge_and_compress(data: PDFList):
     download_path = "/tmp"
-    output_path = validate_merge_and_compress_pdfs(data.files, download_path)
+    output_path = validate_merge_and_compress_pdfs(data.filesbase64, download_path)
 
     try:
         with open(output_path, "rb") as f:
             encoded_pdf = base64.b64encode(f.read()).decode("utf-8")
         os.remove(output_path)
-        return {"compressed_pdf_base64": encoded_pdf}
+        return {"success":True, "filebase64": encoded_pdf}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo retornar el archivo: {str(e)}")
 
