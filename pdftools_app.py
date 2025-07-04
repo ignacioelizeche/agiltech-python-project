@@ -22,7 +22,6 @@ app = FastAPI(
 
 class CompressRequest(BaseModel):
     filebase64: str  # Base64 obligatorio
-    quality: Optional[str] = None  # Calidad opcional: high, medium, low
 
 class PDFList(BaseModel):
     filesbase64: List[str]
@@ -47,17 +46,8 @@ async def merge_pdfs(payload: PDFList):  # <--- receives JSON object
 @app.post("/compresspdf")
 async def compress_pdf_endpoint(request: CompressRequest):
     try:
-        quality_str = (request.quality or "medium").lower()
-
-        # Mapeo de calidad a número
-        quality_map = {
-            "low": 40,
-            "medium": 70,
-            "high": 90
-        }
-        quality = quality_map.get(quality_str, 70)
-
-        compressed_base64 = compress_pdf_base64(request.filebase64, calidad=quality)
+        # Use the automatic best compression (ignores quality parameter)
+        compressed_base64 = compress_pdf_base64(request.filebase64)
         return {"success": True, "filebase64": compressed_base64}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
