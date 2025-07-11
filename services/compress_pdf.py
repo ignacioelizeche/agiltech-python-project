@@ -23,6 +23,9 @@ def compress_pdf_base64(pdf_base64: str) -> str:
         # Obtener imagen de referencia para comparación
         imagen_original = _extraer_imagen_referencia(pdf_base64)
         
+        # Calcular score base del original
+        score_original = _calcular_score_original(tamaño_original, imagen_original)
+        
         # Configuraciones de compresión
         configs = [
             {'escala': 3, 'calidad': 90, 'peso_calidad': 0.8},
@@ -36,7 +39,7 @@ def compress_pdf_base64(pdf_base64: str) -> str:
         ]
         
         mejor_pdf = pdf_base64  # Por defecto el original
-        mejor_score = 0
+        mejor_score = score_original  # Usar score del original como base
         
         for config in configs:
             try:
@@ -51,8 +54,9 @@ def compress_pdf_base64(pdf_base64: str) -> str:
                     config['peso_calidad']
                 )
                 
-                # Si es mejor que el anterior, guardarlo
-                if score > mejor_score:
+                # Solo reemplazar si es SIGNIFICATIVAMENTE mejor
+                # Añadir margen mínimo de mejora del 5%
+                if score > mejor_score * 1.05:
                     mejor_score = score
                     mejor_pdf = pdf_comprimido
                     
@@ -64,6 +68,28 @@ def compress_pdf_base64(pdf_base64: str) -> str:
     except Exception:
         # Si hay cualquier error, devolver el original
         return pdf_base64
+
+def _calcular_score_original(tamaño_original, imagen_original):
+    """
+    Calcula el score base del PDF original
+    """
+    try:
+        # Para el original:
+        # - Calidad perfecta (SSIM = 1.0)
+        # - Reducción de tamaño = 0
+        # - Usar peso de calidad medio (0.5)
+        
+        peso_calidad = 0.5
+        calidad_original = 1.0  # Máxima calidad
+        reduccion_original = 0.0  # Sin reducción
+        
+        # Score = (calidad * peso_calidad) + (reducción * (1 - peso_calidad))
+        score = (calidad_original * peso_calidad) + (reduccion_original * (1 - peso_calidad))
+        
+        return score * 100  # Convertir a escala 0-100
+        
+    except Exception:
+        return 50.0  # Score neutro si hay error
 
 def _calcular_score_calidad_tamano(imagen_original, pdf_comprimido_base64, tamaño_original, peso_calidad):
     """
@@ -266,4 +292,3 @@ def _optimizar_imagen(imagen_pil, calidad):
         imagen_pil = enhancer.enhance(1.02)
     
     return imagen_pil
-
