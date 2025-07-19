@@ -152,9 +152,9 @@ def compress_pdf_base64(pdf_base64: str) -> str:
 
     # Configuraciones de compresión a probar
     configs = [
-        {'optimize_level': 3, 'target_ratio': 0.8},
-        {'optimize_level': 5, 'target_ratio': 0.6},
-        {'optimize_level': 8, 'target_ratio': 0.3},
+        {'optimize_level': 2, 'target_ratio': 0.8},
+        {'optimize_level': 4, 'target_ratio': 0.6},
+        {'optimize_level': 8, 'target_ratio': 0.4},
     ]
 
     best_score = 0
