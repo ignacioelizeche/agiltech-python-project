@@ -107,81 +107,116 @@ def ocr_pdf_and_return_base64(pdf_path: str) -> str:
             base64_result = base64.b64encode(pdf_data).decode('utf-8')
         
         return base64_result
-
-
+    
 def compress_pdf_base64(pdf_base64: str) -> str:
     """
-    Comprime un PDF recibido en base64 usando el servicio externo y retorna el resultado en base64.
-    Calcula automáticamente el tamaño de salida esperado entre 50% y 75% del tamaño original y usa un nivel de optimización alto.
-    Args:
-        pdf_base64 (str): PDF en base64
-    Returns:
-        str: PDF comprimido codificado en base64
-    Raises:
-        Exception: Si el proceso de compresión falla
+    Comprime un PDF recibido en base64 usando el servicio externo y elige el mejor resultado según calidad visual y tamaño.
     """
     import tempfile
     import subprocess
     import os
     import base64
+    from PIL import Image
 
-    input_file = None
-    output_file = None
-    try:
-        # Guardar el PDF base64 en un archivo temporal
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_input:
-            input_file = temp_input.name
-            pdf_bytes = base64.b64decode(pdf_base64)
-            temp_input.write(pdf_bytes)
-        optimize_level = 4  # compresión moderada para mejor calidad
-        # Crear archivo temporal para la respuesta
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
-            output_file = temp_output.name
-        # Construir comando curl (flags por defecto: linearize, normalize, grayscale en false)
-        curl_command = [
-            'curl',
-            '-X', 'POST',
-            '--connect-timeout', '10',
-            '--max-time', '300',
-            'http://192.168.2.33:30124/api/v1/misc/compress-pdf',
-            '-F', f'fileInput=@{input_file};type=application/pdf',
-            '-F', f'optimizeLevel={optimize_level}',
-            '-F', 'linearize=false',
-            '-F', 'normalize=false',
-            '-F', 'grayscale=false',
-            '-o', output_file
-        ]
-        result = subprocess.run(
-            curl_command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True
-        )
-        # Verificar que el archivo de salida existe y tiene contenido
-        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
-            raise Exception("Compress service returned empty response")
-        # Verificar si la respuesta es un PDF válido
-        with open(output_file, 'rb') as f:
-            file_content = f.read()
-            if len(file_content) >= 4 and file_content.startswith(b'%PDF') and b'%%EOF' in file_content:
-                return base64.b64encode(file_content).decode('utf-8')
+    def extract_first_page_image(pdf_bytes):
+        try:
+            import fitz  # PyMuPDF
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
+                temp_pdf.write(pdf_bytes)
+                temp_pdf_path = temp_pdf.name
+            doc = fitz.open(temp_pdf_path)
+            page = doc.load_page(0)
+            pix = page.get_pixmap()
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            doc.close()
+            os.unlink(temp_pdf_path)
+            return img
+        except Exception:
+            return None
+
+    def ssim_score(img1, img2):
+        try:
+            from skimage.metrics import structural_similarity as ssim
+            import numpy as np
+            img1 = img1.convert('L').resize((400, 400))
+            img2 = img2.convert('L').resize((400, 400))
+            arr1 = np.array(img1)
+            arr2 = np.array(img2)
+            return ssim(arr1, arr2, data_range=255)
+        except Exception:
+            return 0.5
+
+    pdf_bytes = base64.b64decode(pdf_base64)
+    original_size = len(pdf_bytes)
+    ref_img = extract_first_page_image(pdf_bytes)
+
+    # Configuraciones de compresión a probar
+    configs = [
+        {'optimize_level': 2, 'target_ratio': 0.9},
+        {'optimize_level': 3, 'target_ratio': 0.8},
+        {'optimize_level': 4, 'target_ratio': 0.7},
+        {'optimize_level': 5, 'target_ratio': 0.6},
+        {'optimize_level': 6, 'target_ratio': 0.5},
+    ]
+
+    best_score = 0
+    best_pdf_b64 = pdf_base64
+
+    for cfg in configs:
+        try:
+            target_size = int(original_size * cfg['target_ratio'])
+            if target_size >= 1024*1024:
+                expected_output_size = f"{round(target_size/1024/1024)}MB"
             else:
-                try:
-                    error_message = file_content.decode('utf-8').strip()
-                    raise Exception(f"Compress service error: {error_message}")
-                except UnicodeDecodeError:
-                    if b'<html' in file_content[:100].lower() or b'<!doctype' in file_content[:100].lower():
-                        raise Exception("Compress service returned HTML error page (service may be down)")
-                    else:
-                        raise Exception("Compress service returned invalid response (not a PDF or readable error)")
-    except subprocess.CalledProcessError as e:
-        error_msg = e.stderr.decode('utf-8') if e.stderr else "Unknown curl error"
-        raise Exception(f"Compress service request failed: {error_msg}")
-    except Exception as e:
-        raise Exception(f"Compress processing error: {str(e)}")
-    finally:
-        if input_file and os.path.exists(input_file):
+                expected_output_size = f"{round(target_size/1024)}KB"
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_input:
+                temp_input.write(pdf_bytes)
+                input_file = temp_input.name
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
+                output_file = temp_output.name
+            curl_command = [
+                'curl',
+                '-X', 'POST',
+                '--connect-timeout', '10',
+                '--max-time', '300',
+                'http://192.168.2.33:30124/api/v1/misc/compress-pdf',
+                '-F', f'fileInput=@{input_file};type=application/pdf',
+                '-F', f'optimizeLevel={cfg["optimize_level"]}',
+                '-F', f'expectedOutputSize={expected_output_size}',
+                '-F', 'linearize=false',
+                '-F', 'normalize=false',
+                '-F', 'grayscale=false',
+                '-o', output_file
+            ]
+            subprocess.run(curl_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+            if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+                continue
+            with open(output_file, 'rb') as f:
+                file_content = f.read()
+            if len(file_content) < 4 or not file_content.startswith(b'%PDF') or b'%%EOF' not in file_content:
+                continue
+            comp_b64 = base64.b64encode(file_content).decode('utf-8')
+            comp_img = extract_first_page_image(file_content) if ref_img else None
+            if ref_img and comp_img:
+                quality = ssim_score(ref_img, comp_img)
+            else:
+                quality = 1.0
+            size_ratio = len(file_content) / original_size
+            # Score: prioriza calidad, pero premia reducción si calidad > 0.95
+            score = (quality * 0.7) + ((1-size_ratio) * 0.3)
+            if score > best_score:
+                best_score = score
+                best_pdf_b64 = comp_b64
             os.unlink(input_file)
-        if output_file and os.path.exists(output_file):
             os.unlink(output_file)
-
+        except Exception:
+            try:
+                os.unlink(input_file)
+            except:
+                pass
+            try:
+                os.unlink(output_file)
+            except:
+                pass
+            continue
+    return best_pdf_b64
