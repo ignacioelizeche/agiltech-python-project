@@ -165,6 +165,10 @@ def compress_pdf_base64(pdf_base64: str) -> str:
     for cfg in configs:
         try:
             target_size = int(original_size * cfg['target_ratio'])
+            if target_size >= 1024*1024:
+                expected_output_size = f"{round(target_size/1024/1024)}MB"
+            else:
+                expected_output_size = f"{round(target_size/1024)}KB"
             with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_input:
                 temp_input.write(pdf_bytes)
                 input_file = temp_input.name
@@ -178,7 +182,7 @@ def compress_pdf_base64(pdf_base64: str) -> str:
                 'http://192.168.2.33:30124/api/v1/misc/compress-pdf',
                 '-F', f'fileInput=@{input_file};type=application/pdf',
                 '-F', f'optimizeLevel={cfg["optimize_level"]}',
-                '-F', f'expectedOutputSize ={cfg["target_ratio"]}',
+                '-F', f'expectedOutputSize={expected_output_size}',
                 '-F', 'linearize=false',
                 '-F', 'normalize=false',
                 '-F', 'grayscale=false',
