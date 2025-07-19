@@ -153,13 +153,10 @@ def compress_pdf_base64(pdf_base64: str) -> str:
     # Configuraciones de compresión a probar
     configs = [
         {'optimize_level': 1, 'target_ratio': 0.8},
-        {'optimize_level': 2, 'target_ratio': 0.7},
         {'optimize_level': 3, 'target_ratio': 0.6},
-        {'optimize_level': 4, 'target_ratio': 0.5},
         {'optimize_level': 5, 'target_ratio': 0.5},
         {'optimize_level': 6, 'target_ratio': 0.5},
         {'optimize_level': 7, 'target_ratio': 0.5},
-        {'optimize_level': 8, 'target_ratio': 0.5},
         {'optimize_level': 9, 'target_ratio': 0.5},
     ]
 
@@ -186,8 +183,8 @@ def compress_pdf_base64(pdf_base64: str) -> str:
                 'http://192.168.2.33:30124/api/v1/misc/compress-pdf',
                 '-F', f'fileInput=@{input_file};type=application/pdf',
                 '-F', f'optimizeLevel={cfg["optimize_level"]}',
-                '-F', 'linearize=false',
-                '-F', 'normalize=false',
+                '-F', 'linearize=true',
+                '-F', 'normalize=true',
                 '-F', 'grayscale=false',
                 '-o', output_file
             ]
