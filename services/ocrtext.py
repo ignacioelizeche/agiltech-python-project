@@ -150,18 +150,15 @@ def compress_pdf_base64(pdf_base64: str) -> str:
     original_size = len(pdf_bytes)
     ref_img = extract_first_page_image(pdf_bytes)
 
-    # Configuraciones de compresión a probar
-    configs = [
+    # --- Compresión externa (curl) ---
+    curl_configs = [
         {'optimize_level': 1, 'target_ratio': 0.8},        
         {'optimize_level': 3, 'target_ratio': 0.5},
         {'optimize_level': 5, 'target_ratio': 0.5},    
         {'optimize_level': 9, 'target_ratio': 0.5}, 
     ]
-
-    best_score = 0
-    best_pdf_b64 = pdf_base64
-
-    for cfg in configs:
+    candidates = []
+    for cfg in curl_configs:
         try:
             target_size = int(original_size * cfg['target_ratio'])
             if target_size >= 1024*1024:
@@ -201,11 +198,8 @@ def compress_pdf_base64(pdf_base64: str) -> str:
             else:
                 quality = 1.0
             size_ratio = len(file_content) / original_size
-            # Score: prioriza calidad, pero premia reducción si calidad > 0.95
             score = (quality * 0.7) + ((1-size_ratio) * 0.3)
-            if score > best_score:
-                best_score = score
-                best_pdf_b64 = comp_b64
+            candidates.append({'b64': comp_b64, 'score': score})
             os.unlink(input_file)
             os.unlink(output_file)
         except Exception:
@@ -218,4 +212,73 @@ def compress_pdf_base64(pdf_base64: str) -> str:
             except:
                 pass
             continue
-    return best_pdf_b64
+
+    # --- Compresión local (PyPDFium2/JPEG) ---
+    try:
+        import pypdfium2 as pdfium
+        import img2pdf
+        from pathlib import Path
+        import numpy as np
+        import cv2
+        import shutil
+        local_configs = [
+            {'escala': 3, 'calidad': 90, 'peso_calidad': 0.8},
+            {'escala': 2, 'calidad': 80, 'peso_calidad': 0.6},
+            {'escala': 2, 'calidad': 70, 'peso_calidad': 0.4},
+            {'escala': 1, 'calidad': 60, 'peso_calidad': 0.2},
+        ]
+        for config in local_configs:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                tmp_path = Path(tmpdir)
+                input_pdf_path = tmp_path / "original.pdf"
+                output_pdf_path = tmp_path / "comprimido.pdf"
+                with open(input_pdf_path, "wb") as f:
+                    f.write(pdf_bytes)
+                pdf = pdfium.PdfDocument(str(input_pdf_path))
+                cantidad_paginas = len(pdf)
+                imagenes_comprimidas = []
+                for i in range(cantidad_paginas):
+                    pagina = pdf.get_page(i)
+                    imagen_pil = pagina.render(scale=config['escala']).to_pil()
+                    # Optimizar imagen
+                    if config['calidad'] < 70:
+                        imagen_pil = imagen_pil.filter(Image.SMOOTH)
+                        from PIL import ImageEnhance
+                        enhancer = ImageEnhance.Color(imagen_pil)
+                        imagen_pil = enhancer.enhance(0.95)
+                    else:
+                        from PIL import ImageEnhance
+                        enhancer = ImageEnhance.Contrast(imagen_pil)
+                        imagen_pil = enhancer.enhance(1.02)
+                    nombre_imagen = tmp_path / f"pagina_{i+1}.jpg"
+                    save_kwargs = {
+                        'format': 'JPEG',
+                        'quality': config['calidad'],
+                        'optimize': True,
+                        'progressive': True
+                    }
+                    imagen_pil.save(nombre_imagen, **save_kwargs)
+                    imagenes_comprimidas.append(nombre_imagen)
+                with open(output_pdf_path, "wb") as f:
+                    f.write(img2pdf.convert([str(p) for p in imagenes_comprimidas]))
+                with open(output_pdf_path, "rb") as f:
+                    pdf_final_bytes = f.read()
+                pdf.close()
+                comp_b64 = base64.b64encode(pdf_final_bytes).decode("utf-8")
+                comp_img = extract_first_page_image(pdf_final_bytes) if ref_img else None
+                if ref_img and comp_img:
+                    quality = ssim_score(ref_img, comp_img)
+                else:
+                    quality = 1.0
+                size_ratio = len(pdf_final_bytes) / original_size
+                score = (quality * config['peso_calidad']) + ((1-size_ratio) * (1-config['peso_calidad']))
+                candidates.append({'b64': comp_b64, 'score': score})
+    except Exception:
+        pass
+
+    # Agregar el original como candidato
+    candidates.append({'b64': pdf_base64, 'score': 0.7})
+
+    # Elegir el mejor
+    best = max(candidates, key=lambda x: x['score'])
+    return best['b64']
