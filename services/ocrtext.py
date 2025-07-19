@@ -107,3 +107,91 @@ def ocr_pdf_and_return_base64(pdf_path: str) -> str:
             base64_result = base64.b64encode(pdf_data).decode('utf-8')
         
         return base64_result
+
+
+def compress_pdf_base64(pdf_base64: str) -> str:
+    """
+    Comprime un PDF recibido en base64 usando el servicio externo y retorna el resultado en base64.
+    Calcula automáticamente el tamaño de salida esperado entre 50% y 75% del tamaño original y usa un nivel de optimización alto.
+    Args:
+        pdf_base64 (str): PDF en base64
+    Returns:
+        str: PDF comprimido codificado en base64
+    Raises:
+        Exception: Si el proceso de compresión falla
+    """
+    import tempfile
+    import subprocess
+    import os
+    import base64
+
+    input_file = None
+    output_file = None
+    try:
+        # Guardar el PDF base64 en un archivo temporal
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_input:
+            input_file = temp_input.name
+            pdf_bytes = base64.b64decode(pdf_base64)
+            temp_input.write(pdf_bytes)
+        # Calcular tamaño original y expected_output_size
+        original_size = len(pdf_bytes)
+        # Entre 50% y 75% del tamaño original (elige 60% como valor intermedio)
+        target_size = int(original_size * 0.6)
+        # Formatear como string en KB
+        if target_size >= 1024*1024:
+            expected_output_size = f"{round(target_size/1024/1024)}MB"
+        else:
+            expected_output_size = f"{round(target_size/1024)}KB"
+        optimize_level = 6  # nivel alto de compresión
+        # Crear archivo temporal para la respuesta
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
+            output_file = temp_output.name
+        # Construir comando curl (flags por defecto: linearize, normalize, grayscale en false)
+        curl_command = [
+            'curl',
+            '-X', 'POST',
+            '--connect-timeout', '10',
+            '--max-time', '300',
+            'http://192.168.2.33:30124/api/v1/misc/compress-pdf',
+            '-F', f'fileInput=@{input_file};type=application/pdf',
+            '-F', f'optimizeLevel={optimize_level}',
+            '-F', f'expectedOutputSize={expected_output_size}',
+            '-F', 'linearize=false',
+            '-F', 'normalize=false',
+            '-F', 'grayscale=false',
+            '-o', output_file
+        ]
+        result = subprocess.run(
+            curl_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True
+        )
+        # Verificar que el archivo de salida existe y tiene contenido
+        if not os.path.exists(output_file) or os.path.getsize(output_file) == 0:
+            raise Exception("Compress service returned empty response")
+        # Verificar si la respuesta es un PDF válido
+        with open(output_file, 'rb') as f:
+            file_content = f.read()
+            if len(file_content) >= 4 and file_content.startswith(b'%PDF') and b'%%EOF' in file_content:
+                return base64.b64encode(file_content).decode('utf-8')
+            else:
+                try:
+                    error_message = file_content.decode('utf-8').strip()
+                    raise Exception(f"Compress service error: {error_message}")
+                except UnicodeDecodeError:
+                    if b'<html' in file_content[:100].lower() or b'<!doctype' in file_content[:100].lower():
+                        raise Exception("Compress service returned HTML error page (service may be down)")
+                    else:
+                        raise Exception("Compress service returned invalid response (not a PDF or readable error)")
+    except subprocess.CalledProcessError as e:
+        error_msg = e.stderr.decode('utf-8') if e.stderr else "Unknown curl error"
+        raise Exception(f"Compress service request failed: {error_msg}")
+    except Exception as e:
+        raise Exception(f"Compress processing error: {str(e)}")
+    finally:
+        if input_file and os.path.exists(input_file):
+            os.unlink(input_file)
+        if output_file and os.path.exists(output_file):
+            os.unlink(output_file)
+
