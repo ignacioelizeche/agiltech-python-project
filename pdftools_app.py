@@ -11,7 +11,7 @@ from services.ocrtext import ocr_pdf_and_return_base64
 from services.merge_pdf import validate_and_merge_pdfs
 #from services.compress_pdf import compress_pdf_base64
 from services.mergencompress import validate_merge_and_compress_pdfs
-from services.mergencompress import compress_pdf_base64
+from services.ocrtext import compress_pdf_base64
 app = FastAPI(
     title="PDF Tools API",
     docs_url="/docs",
