@@ -280,8 +280,12 @@ def compress_pdf_base64(pdf_base64: str) -> str:
     except Exception:
         pass
 
-    # Agregar el original como candidato
-    candidates.append({'b64': pdf_base64, 'score': 0.7})
+    # Score del original: calidad perfecta, reducción 0, peso_calidad promedio (0.7)
+    quality_original = 1.0
+    size_ratio_original = 1.0
+    peso_calidad_original = 0.7
+    score_original = (quality_original * peso_calidad_original) + ((1-size_ratio_original) * (1-peso_calidad_original))
+    candidates.append({'b64': pdf_base64, 'score': score_original})
 
     # Elegir el mejor
     best = max(candidates, key=lambda x: x['score'])
