@@ -135,14 +135,14 @@ def compress_pdf_base64(pdf_base64: str) -> str:
             temp_input.write(pdf_bytes)
         # Calcular tamaño original y expected_output_size
         original_size = len(pdf_bytes)
-        # Entre 50% y 75% del tamaño original (elige 60% como valor intermedio)
-        target_size = int(original_size * 0.6)
+        # Menos compresión: 80% del tamaño original
+        target_size = int(original_size * 0.8)
         # Formatear como string en KB
         if target_size >= 1024*1024:
             expected_output_size = f"{round(target_size/1024/1024)}MB"
         else:
             expected_output_size = f"{round(target_size/1024)}KB"
-        optimize_level = 6  # nivel alto de compresión
+        optimize_level = 3  # compresión moderada para mejor calidad
         # Crear archivo temporal para la respuesta
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
             output_file = temp_output.name
