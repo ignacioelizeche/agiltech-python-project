@@ -223,9 +223,13 @@ def compress_pdf_base64(pdf_base64: str) -> str:
         import shutil
         local_configs = [
             {'escala': 3, 'calidad': 90, 'peso_calidad': 0.8},
+            {'escala': 3, 'calidad': 85, 'peso_calidad': 0.7},
             {'escala': 2, 'calidad': 80, 'peso_calidad': 0.6},
+            {'escala': 2, 'calidad': 75, 'peso_calidad': 0.5},
             {'escala': 2, 'calidad': 70, 'peso_calidad': 0.4},
+            {'escala': 2, 'calidad': 65, 'peso_calidad': 0.3},
             {'escala': 1, 'calidad': 60, 'peso_calidad': 0.2},
+            {'escala': 1, 'calidad': 55, 'peso_calidad': 0.1}
         ]
         for config in local_configs:
             with tempfile.TemporaryDirectory() as tmpdir:
