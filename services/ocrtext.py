@@ -154,8 +154,7 @@ def compress_pdf_base64(pdf_base64: str) -> str:
     configs = [
         {'optimize_level': 1, 'target_ratio': 0.8},        
         {'optimize_level': 3, 'target_ratio': 0.75},
-        {'optimize_level': 5, 'target_ratio': 0.5},       
-        {'optimize_level': 7, 'target_ratio': 0.25},
+        {'optimize_level': 5, 'target_ratio': 0.5},    
         {'optimize_level': 9, 'target_ratio': 0.15}, 
     ]
 
