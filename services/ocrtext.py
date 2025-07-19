@@ -176,6 +176,7 @@ def compress_pdf_base64(pdf_base64: str) -> str:
                 'http://192.168.2.33:30124/api/v1/misc/compress-pdf',
                 '-F', f'fileInput=@{input_file};type=application/pdf',
                 '-F', f'optimizeLevel={cfg["optimize_level"]}',
+                '-F', f'expectedOutputSize ={cfg["target_ratio"]}',
                 '-F', 'linearize=false',
                 '-F', 'normalize=false',
                 '-F', 'grayscale=false',
