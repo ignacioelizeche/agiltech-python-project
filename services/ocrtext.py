@@ -133,16 +133,7 @@ def compress_pdf_base64(pdf_base64: str) -> str:
             input_file = temp_input.name
             pdf_bytes = base64.b64decode(pdf_base64)
             temp_input.write(pdf_bytes)
-        # Calcular tamaño original y expected_output_size
-        original_size = len(pdf_bytes)
-        # Menos compresión: 80% del tamaño original
-        target_size = int(original_size * 0.8)
-        # Formatear como string en KB
-        if target_size >= 1024*1024:
-            expected_output_size = f"{round(target_size/1024/1024)}MB"
-        else:
-            expected_output_size = f"{round(target_size/1024)}KB"
-        optimize_level = 3  # compresión moderada para mejor calidad
+        optimize_level = 4  # compresión moderada para mejor calidad
         # Crear archivo temporal para la respuesta
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_output:
             output_file = temp_output.name
@@ -155,7 +146,6 @@ def compress_pdf_base64(pdf_base64: str) -> str:
             'http://192.168.2.33:30124/api/v1/misc/compress-pdf',
             '-F', f'fileInput=@{input_file};type=application/pdf',
             '-F', f'optimizeLevel={optimize_level}',
-            '-F', f'expectedOutputSize={expected_output_size}',
             '-F', 'linearize=false',
             '-F', 'normalize=false',
             '-F', 'grayscale=false',
