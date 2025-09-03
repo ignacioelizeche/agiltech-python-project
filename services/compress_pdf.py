@@ -8,51 +8,50 @@ import numpy as np
 from skimage.metrics import structural_similarity as ssim
 import cv2
 
-# ---------------- FUNCIÓN PRINCIPAL ---------------- #
-
-def compress_pdf_base64(pdf_base64: str, max_ratio: float = 0.35, min_ssim_critico: float = 0.95, min_ssim_normal: float = 0.92):
+def compress_pdf_base64(pdf_base64: str, max_ratio: float = 0.35):
     """
-    Comprime PDF intentando reducirlo hasta un máximo de max_ratio del tamaño original
-    sin degradar la calidad visual.
-
-    Retorna:
-    - pdf_base64 optimizado
-    - tamaño final en KB
+    Simula la compresión adaptativa estilo ILovePDF.
+    Intenta acercarse al max_ratio sin sacrificar calidad.
     """
     tamaño_original = len(base64.b64decode(pdf_base64))
     imagen_original = _extraer_imagen_referencia(pdf_base64)
     documento_critico = _detectar_documento_critico(pdf_base64)
 
-    escalas = [3, 2, 1]
-    calidades = [95, 90, 85, 80, 75, 70, 65, 60]
+    # Configuración inicial
+    escala = 3
+    calidad = 95
+    min_ssim = 0.95 if documento_critico else 0.92
 
     mejor_pdf = pdf_base64
-    mejor_score = -1
     mejor_tamaño = tamaño_original
+    mejor_score = -1
 
-    for escala in escalas:
-        for calidad in calidades:
-            try:
-                config = {'escala': escala, 'calidad': calidad}
-                pdf_comprimido = _comprimir_con_config(pdf_base64, config)
-                tamaño_comprimido = len(base64.b64decode(pdf_comprimido))
-                ratio = tamaño_comprimido / tamaño_original
+    while True:
+        pdf_comprimido = _comprimir_con_config(pdf_base64, {'escala': escala, 'calidad': calidad})
+        tamaño_comprimido = len(base64.b64decode(pdf_comprimido))
+        ratio = tamaño_comprimido / tamaño_original
 
-                peso_calidad = 0.8 if documento_critico else 0.5
-                score = _calcular_score_calidad_tamano(imagen_original, pdf_comprimido, tamaño_original, peso_calidad)
-                ssim_score = score / 100
+        score = _calcular_score_calidad_tamano(imagen_original, pdf_comprimido, tamaño_original, 0.5)
+        ssim_score = score / 100
 
-                # Determinar SSIM mínimo según tipo de documento
-                ssim_min = min_ssim_critico if documento_critico else min_ssim_normal
+        # Guardar si cumple SSIM y mejora score
+        if ssim_score >= min_ssim and score > mejor_score:
+            mejor_pdf = pdf_comprimido
+            mejor_score = score
+            mejor_tamaño = tamaño_comprimido
 
-                # Solo aceptar si SSIM alto y ratio no inferior a max_ratio
-                if ssim_score >= ssim_min and ratio >= max_ratio and score > mejor_score:
-                    mejor_score = score
-                    mejor_pdf = pdf_comprimido
-                    mejor_tamaño = tamaño_comprimido
+        # Detener si llegamos al ratio máximo o la calidad cae demasiado
+        if ratio <= max_ratio or ssim_score < min_ssim:
+            break
 
-            except Exception:
-                continue
+        # Reducir gradualmente calidad y/o escala
+        if calidad > 70:
+            calidad -= 5
+        elif escala > 1:
+            escala -= 1
+            calidad = 85
+        else:
+            break
 
     return mejor_pdf, round(mejor_tamaño / 1024, 2)
 
