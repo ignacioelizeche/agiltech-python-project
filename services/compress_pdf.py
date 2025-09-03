@@ -8,62 +8,58 @@ import numpy as np
 from skimage.metrics import structural_similarity as ssim
 import cv2
 
-def compress_pdf_base64(pdf_base64: str, objetivo_ratio: float = 0.5):
+# ---------------- FUNCIÓN PRINCIPAL ---------------- #
+
+def compress_pdf_base64(pdf_base64: str, max_ratio: float = 0.35, min_ssim_critico: float = 0.95, min_ssim_normal: float = 0.92):
     """
-    Comprime el PDF hasta aproximadamente un porcentaje del tamaño original
-    sin degradar significativamente la calidad.
+    Comprime PDF intentando reducirlo hasta un máximo de max_ratio del tamaño original
+    sin degradar la calidad visual.
 
     Retorna:
     - pdf_base64 optimizado
     - tamaño final en KB
     """
-    try:
-        tamaño_original = len(base64.b64decode(pdf_base64))
-        imagen_original = _extraer_imagen_referencia(pdf_base64)
-        documento_critico = _detectar_documento_critico(pdf_base64)
+    tamaño_original = len(base64.b64decode(pdf_base64))
+    imagen_original = _extraer_imagen_referencia(pdf_base64)
+    documento_critico = _detectar_documento_critico(pdf_base64)
 
-        escalas = [3, 2, 1]
-        calidades = [95, 90, 85, 80, 75, 70, 65, 60]
+    escalas = [3, 2, 1]
+    calidades = [95, 90, 85, 80, 75, 70, 65, 60]
 
-        mejor_pdf = pdf_base64
-        mejor_score = -1
-        mejor_tamaño = tamaño_original
+    mejor_pdf = pdf_base64
+    mejor_score = -1
+    mejor_tamaño = tamaño_original
 
-        for escala in escalas:
-            for calidad in calidades:
-                try:
-                    config = {'escala': escala, 'calidad': calidad}
-                    pdf_comprimido = _comprimir_con_config(pdf_base64, config)
-                    tamaño_comprimido = len(base64.b64decode(pdf_comprimido))
-                    ratio = tamaño_comprimido / tamaño_original
+    for escala in escalas:
+        for calidad in calidades:
+            try:
+                config = {'escala': escala, 'calidad': calidad}
+                pdf_comprimido = _comprimir_con_config(pdf_base64, config)
+                tamaño_comprimido = len(base64.b64decode(pdf_comprimido))
+                ratio = tamaño_comprimido / tamaño_original
 
-                    peso_calidad = 0.8 if documento_critico else 0.5
-                    score = _calcular_score_calidad_tamano(
-                        imagen_original,
-                        pdf_comprimido,
-                        tamaño_original,
-                        peso_calidad
-                    )
+                peso_calidad = 0.8 if documento_critico else 0.5
+                score = _calcular_score_calidad_tamano(imagen_original, pdf_comprimido, tamaño_original, peso_calidad)
+                ssim_score = score / 100
 
-                    # Aceptar si ratio <= objetivo y score es mejor
-                    if ratio <= objetivo_ratio and score > mejor_score:
-                        mejor_score = score
-                        mejor_pdf = pdf_comprimido
-                        mejor_tamaño = tamaño_comprimido
+                # Determinar SSIM mínimo según tipo de documento
+                ssim_min = min_ssim_critico if documento_critico else min_ssim_normal
 
-                except Exception:
-                    continue
+                # Solo aceptar si SSIM alto y ratio no inferior a max_ratio
+                if ssim_score >= ssim_min and ratio >= max_ratio and score > mejor_score:
+                    mejor_score = score
+                    mejor_pdf = pdf_comprimido
+                    mejor_tamaño = tamaño_comprimido
 
-        return mejor_pdf, round(mejor_tamaño / 1024, 2)
+            except Exception:
+                continue
 
-    except Exception:
-        return pdf_base64, round(len(base64.b64decode(pdf_base64)) / 1024, 2)
+    return mejor_pdf, round(mejor_tamaño / 1024, 2)
 
 
 # ---------------- FUNCIONES AUXILIARES ---------------- #
 
 def _calcular_score_calidad_tamano(imagen_original, pdf_comprimido_base64, tamaño_original, peso_calidad):
-    """Calcula score combinando calidad (SSIM) y reducción de tamaño"""
     try:
         tamaño_comprimido = len(base64.b64decode(pdf_comprimido_base64))
         reduccion = (tamaño_original - tamaño_comprimido) / tamaño_original
@@ -84,8 +80,8 @@ def _calcular_score_calidad_tamano(imagen_original, pdf_comprimido_base64, tama�
     except Exception:
         return 0
 
+
 def _extraer_imagen_comprimida(pdf_comprimido_base64):
-    """Extrae imagen de la primera página del PDF comprimido"""
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             pdf_path = Path(tmpdir) / "temp.pdf"
@@ -99,8 +95,8 @@ def _extraer_imagen_comprimida(pdf_comprimido_base64):
     except Exception:
         return None
 
+
 def _calcular_ssim(imagen1, imagen2):
-    """Calcula SSIM entre dos imágenes"""
     try:
         if imagen1.size != imagen2.size:
             imagen2 = imagen2.resize(imagen1.size, Image.Resampling.LANCZOS)
@@ -112,8 +108,8 @@ def _calcular_ssim(imagen1, imagen2):
     except Exception:
         return 0.5
 
+
 def _detectar_documento_critico(pdf_base64: str) -> bool:
-    """Detecta si el documento requiere alta calidad"""
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             pdf_path = Path(tmpdir) / "temp.pdf"
@@ -125,10 +121,12 @@ def _detectar_documento_critico(pdf_base64: str) -> bool:
             pdf.close()
             if imagen.mode != 'RGB':
                 imagen = imagen.convert('RGB')
+
             width, height = imagen.size
             colores_oficiales = 0
             texto_denso = 0
             total_muestras = 0
+
             for y in range(0, height, 15):
                 for x in range(0, width, 15):
                     try:
@@ -142,16 +140,20 @@ def _detectar_documento_critico(pdf_base64: str) -> bool:
                                 texto_denso += 1
                     except:
                         continue
+
             if total_muestras == 0:
                 return False
+
             prop_oficial = (colores_oficiales / total_muestras) * 100
             prop_texto = (texto_denso / total_muestras) * 100
+
             return prop_oficial > 8 or prop_texto > 12
+
     except Exception:
         return True
 
+
 def _extraer_imagen_referencia(pdf_base64: str):
-    """Extrae primera página como imagen de referencia"""
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             pdf_path = Path(tmpdir) / "temp.pdf"
@@ -165,8 +167,8 @@ def _extraer_imagen_referencia(pdf_base64: str):
     except Exception:
         return None
 
+
 def _comprimir_con_config(pdf_base64: str, config: dict) -> str:
-    """Comprime PDF con configuración específica"""
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
         input_pdf = tmp_path / "original.pdf"
@@ -176,6 +178,7 @@ def _comprimir_con_config(pdf_base64: str, config: dict) -> str:
         pdf = pdfium.PdfDocument(str(input_pdf))
         cantidad_paginas = len(pdf)
         imagenes_comprimidas = []
+
         for i in range(cantidad_paginas):
             pagina = pdf.get_page(i)
             imagen = pagina.render(scale=config['escala']).to_pil()
@@ -183,14 +186,16 @@ def _comprimir_con_config(pdf_base64: str, config: dict) -> str:
             nombre_imagen = tmp_path / f"pagina_{i+1}.jpg"
             imagen.save(nombre_imagen, format='JPEG', quality=config['calidad'], optimize=True, progressive=True)
             imagenes_comprimidas.append(nombre_imagen)
+
         with open(output_pdf, "wb") as f:
             f.write(img2pdf.convert([str(p) for p in imagenes_comprimidas]))
         pdf.close()
+
         with open(output_pdf, "rb") as f:
             return base64.b64encode(f.read()).decode("utf-8")
 
+
 def _optimizar_imagen(imagen, calidad):
-    """Optimiza imagen según calidad"""
     if calidad < 70:
         imagen = imagen.filter(ImageFilter.SMOOTH)
         enhancer = ImageEnhance.Color(imagen)
