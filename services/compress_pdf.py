@@ -52,15 +52,14 @@ def calculate_quality_score(
     return (ssim_score * quality_weight) + (size_reduction_score * size_weight)
 
 # --- Función Principal Modificada ---
-
 def find_best_pdf_compression(
     pdf_path: str | None = None,
     pdf_base64: str | None = None,
     stirling_url: str = STIRLING_URL,
     api_key: str = API_KEY,
-    min_ssim_threshold: float = 0.95,
-    quality_weight: float = 0.7,
-    size_weight: float = 0.3
+    min_ssim_threshold: float = 0.98,  # Increased to ensure higher quality
+    quality_weight: float = 0.8,       # Increased to prioritize quality
+    size_weight: float = 0.2           # Decreased to de-prioritize size reduction
 ) -> tuple[str, float] | None:
     """
     Comprime un PDF (desde una ruta o Base64) y elige la mejor versión.
