@@ -130,11 +130,16 @@ def find_best_pdf_compression(
     except Exception as e:
         logging.error(f"Error leyendo PDF: {e}")
         return None
-
-    # Verificar en los últimos 5
-    if pdf_base64 in last_5_base64:
+        
+    # Normalizar Base64 para la comparación en el historial
+    if pdf_base64:
+        base64_to_check = pdf_base64.replace("\n", "").replace("\r", "")
+    else:
+        base64_to_check = base64.b64encode(original_pdf_bytes).decode("utf-8")
+    
+    # Verificar duplicados en los últimos 5
+    if base64_to_check in last_5_base64:
         logging.info("⚠️ PDF repetido detectado. Usando iLoveAPI compress.")
-        # Aquí eliges un nivel de compresión, por ejemplo “recommended”
         compressed_pdf_bytes = compress_with_iloveapi(original_pdf_bytes, compression_level="recommended")
         if compressed_pdf_bytes is None:
             return None
@@ -142,7 +147,7 @@ def find_best_pdf_compression(
         final_size_kb = round(len(compressed_pdf_bytes) / 1024, 2)
         return final_base64, final_size_kb
     else:
-        last_5_base64.append(pdf_base64)
+        last_5_base64.append(base64_to_check)
 
     # Si no es repetido, seguir con Stirling como antes
     original_size = len(original_pdf_bytes)
