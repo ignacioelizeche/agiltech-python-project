@@ -23,7 +23,7 @@ async def sftp_copy(request: SFTPRequest):
             username=request.username,
             password=request.password,
             directory=request.directory,
-            download_path="./downloads"
+            download_path="../opt/procard"
         )
 
         headers = {"Content-Disposition": "attachment; filename=archivos_descargados.zip"}
