@@ -14,7 +14,7 @@ def download_from_sftp(host: str, username: str, password: str, directory: str, 
     os.makedirs(download_path, exist_ok=True)
 
     # Conexión SFTP (puerto 22 — si es FTPS, se debe cambiar de librería)
-    transport = paramiko.Transport((host, 22))
+    transport = paramiko.Transport((host, 990))
     transport.connect(username=username, password=password)
     sftp = paramiko.SFTPClient.from_transport(transport)
 
