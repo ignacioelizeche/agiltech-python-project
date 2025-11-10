@@ -1,50 +1,44 @@
 import os
 import zipfile
 from io import BytesIO
-import paramiko
+from ftplib import FTP_TLS
 
-# Prefijos a descargar
 FILE_PREFIXES = ["e156f029", "EMAES029"]
 
-def download_from_sftp(host: str, username: str, password: str, directory: str, download_path: str) -> BytesIO:
-    """
-    Se conecta al servidor SFTP, descarga los archivos que comiencen con los prefijos definidos,
-    los guarda localmente y devuelve un ZIP en memoria.
-    """
+def download_from_ftps(host: str, username: str, password: str, directory: str, download_path: str) -> BytesIO:
     os.makedirs(download_path, exist_ok=True)
 
-    # Conexión SFTP (puerto 22 — si es FTPS, se debe cambiar de librería)
-    transport = paramiko.Transport((host, 990))
-    transport.connect(username=username, password=password)
-    sftp = paramiko.SFTPClient.from_transport(transport)
+    ftps = FTP_TLS()
+    # conexión explícita TLS en el puerto 990
+    ftps.connect(host, 990, timeout=15)
+    ftps.auth()  # inicia TLS
+    ftps.login(username, password)
+    ftps.prot_p()  # protege canal de datos
 
-    # Cambiar al directorio raíz (o al indicado)
-    sftp.chdir(directory)
+    # cambiar al directorio solicitado
+    ftps.cwd(directory)
 
-    # Listar y filtrar archivos
-    all_files = sftp.listdir()
-    filtered_files = [f for f in all_files if any(f.startswith(pref) for pref in FILE_PREFIXES)]
+    # listar y filtrar
+    archivos = ftps.nlst()
+    seleccionados = [f for f in archivos if any(f.startswith(p) for p in FILE_PREFIXES)]
 
-    if not filtered_files:
-        sftp.close()
-        transport.close()
+    if not seleccionados:
+        ftps.quit()
         raise Exception("No se encontraron archivos con los prefijos e156f029 o EMAES029")
 
-    # Descargar archivos seleccionados
-    for file_name in filtered_files:
-        remote_path = os.path.join(directory, file_name)
-        local_path = os.path.join(download_path, file_name)
-        sftp.get(remote_path, local_path)
+    for archivo in seleccionados:
+        local_path = os.path.join(download_path, archivo)
+        with open(local_path, "wb") as f:
+            ftps.retrbinary(f"RETR " + archivo, f.write)
 
-    sftp.close()
-    transport.close()
+    ftps.quit()
 
-    # Crear ZIP en memoria
+    # generar ZIP en memoria
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
-        for file_name in filtered_files:
-            local_path = os.path.join(download_path, file_name)
-            zipf.write(local_path, arcname=file_name)
+        for archivo in seleccionados:
+            ruta_local = os.path.join(download_path, archivo)
+            zipf.write(ruta_local, arcname=archivo)
 
     zip_buffer.seek(0)
     return zip_buffer
