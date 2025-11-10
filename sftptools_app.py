@@ -1,19 +1,19 @@
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from services.sftp_service import download_from_sftp
+from fastapi.responses import Response
+from typing import List, Optional
 
-app = FastAPI(
-    title="SFTP Tools API",
-    docs_url="/docs",
-    openapi_url="/openapi.json",
-    servers=[{"url": "/sftptools", "description": "SFTP Tools Server"}]
-)
+app = FastAPI(title="SFTP Tools API")
 
 class SFTPRequest(BaseModel):
     host: str
+    directory: str
+    descarga_path: str
     username: str
     password: str
-    directory: str
+    filename_startswith: Optional[List[str]] = []  # array de prefijos
+    from_date: Optional[str] = ""  # YYYY-MM-DD
 
 @app.post("/sftpcopy")
 async def sftp_copy(request: SFTPRequest):
@@ -23,7 +23,9 @@ async def sftp_copy(request: SFTPRequest):
             username=request.username,
             password=request.password,
             directory=request.directory,
-            download_path="/opt/agiltech-python-project/procard"
+            download_path=request.descarga_path,
+            filename_startswith=request.filename_startswith,
+            from_date=request.from_date
         )
 
         headers = {"Content-Disposition": "attachment; filename=archivos_descargados.zip"}
