@@ -3,7 +3,7 @@ import zipfile
 from io import BytesIO
 from ftplib import FTP_TLS
 
-FILE_PREFIXES = ["e156f029", "EMAES029"]
+FILE_PREFIXES = ["E156F029", "EMAES029"]
 
 def download_from_sftp(host: str, username: str, password: str, directory: str, download_path: str) -> BytesIO:
     os.makedirs(download_path, exist_ok=True)
