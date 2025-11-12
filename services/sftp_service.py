@@ -1,51 +1,68 @@
 import os, zipfile
 from io import BytesIO
-from ftplib import FTP_TLS
 from datetime import datetime
 from typing import List
 
-def download_from_sftp(host: str, username: str, password: str, directory: str,
-                       download_path: str, filename_startswith: List[str] = [],
-                       from_date: str = "") -> BytesIO:
+import paramiko
+from ftplib import FTP_TLS
+
+def download_from_server(host: str, username: str, password: str, directory: str,
+                         download_path: str, filename_startswith: List[str] = [],
+                         from_date: str = "", port: int = None, conn_type: str = "sftp") -> BytesIO:
     os.makedirs(download_path, exist_ok=True)
-
-    ftps = FTP_TLS()
-    ftps.connect(host, 990, timeout=15)
-    ftps.auth()
-    ftps.login(username, password)
-    ftps.prot_p()
-    ftps.cwd(directory)
-
-    archivos = ftps.nlst()
     seleccionados = []
 
+    # Conexión y listado de archivos
+    if conn_type.lower() == "ftps":
+        port = port or 990
+        client = FTP_TLS()
+        client.connect(host, port, timeout=15)
+        client.auth()
+        client.login(username, password)
+        client.prot_p()
+        client.cwd(directory)
+        archivos = client.nlst()
+        def get_mod_time(f):
+            mdtm = client.sendcmd(f"MDTM {f}")
+            return datetime.strptime(mdtm[4:], "%Y%m%d%H%M%S")
+        download_func = lambda f, path: client.retrbinary(f"RETR {f}", open(path, "wb").write)
+        close_func = client.quit
+
+    elif conn_type.lower() == "sftp":
+        port = port or 22
+        transport = paramiko.Transport((host, port))
+        transport.connect(username=username, password=password)
+        client = paramiko.SFTPClient.from_transport(transport)
+        archivos = client.listdir(directory)
+        def get_mod_time(f):
+            attr = client.stat(os.path.join(directory, f))
+            return datetime.fromtimestamp(attr.st_mtime)
+        download_func = lambda f, path: client.get(os.path.join(directory, f), path)
+        close_func = lambda: (client.close(), transport.close())
+
+    else:
+        raise ValueError("conn_type debe ser 'sftp' o 'ftps'")
+
+    # Filtrar archivos
     for archivo in archivos:
-        # Filtrado por prefijo
         if filename_startswith and not any(archivo.startswith(p) for p in filename_startswith):
             continue
-
-        # Filtrado por fecha
-        if from_date:
-            mdtm = ftps.sendcmd(f"MDTM {archivo}")
-            mod_time = datetime.strptime(mdtm[4:], "%Y%m%d%H%M%S")
-            if mod_time < datetime.fromisoformat(from_date):
-                continue
-
+        if from_date and get_mod_time(archivo) < datetime.fromisoformat(from_date):
+            continue
         seleccionados.append(archivo)
 
     if not seleccionados:
-        ftps.quit()
+        close_func()
         raise Exception("No se encontraron archivos con los criterios dados")
 
     # Descargar archivos
     for archivo in seleccionados:
         local_path = os.path.join(download_path, archivo)
-        with open(local_path, "wb") as f:
-            ftps.retrbinary(f"RETR " + archivo, f.write)
+        download_func(archivo, local_path)
 
-    ftps.quit()
+    close_func()
 
-    # Generar ZIP en memoria
+    # Crear ZIP en memoria
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
         for archivo in seleccionados:
