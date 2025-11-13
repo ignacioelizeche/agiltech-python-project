@@ -14,19 +14,28 @@ def download_from_server(host: str, username: str, password: str, directory: str
 
     # Conexión y listado de archivos
     if conn_type.lower() == "ftps":
-        port = port or 990
-        client = FTP_TLS()
-        client.connect(host, port, timeout=15)
-        client.auth()
-        client.login(username, password)
-        client.prot_p()
-        client.cwd(directory)
-        archivos = client.nlst()
-        def get_mod_time(f):
-            mdtm = client.sendcmd(f"MDTM {f}")
-            return datetime.strptime(mdtm[4:], "%Y%m%d%H%M%S")
-        download_func = lambda f, path: client.retrbinary(f"RETR {f}", open(path, "wb").write)
-        close_func = client.quit
+    port = port or 990
+    client = FTP_TLS()
+
+    # FTPS implícito (puerto 990) o explícito (21)
+    if port == 990:
+        client.connect(host, port, timeout=30)
+    else:
+        client.connect(host, port, timeout=30)
+        client.auth()  # solo explícito
+
+    client.login(username, password)
+    client.prot_p()
+    client.cwd(directory)
+    archivos = client.nlst()
+
+    def get_mod_time(f):
+        mdtm = client.sendcmd(f"MDTM {f}")
+        return datetime.strptime(mdtm[4:], "%Y%m%d%H%M%S")
+
+    download_func = lambda f, path: client.retrbinary(f"RETR {f}", open(path, "wb").write)
+    close_func = client.quit
+
 
     elif conn_type.lower() == "sftp":
         port = port or 22
