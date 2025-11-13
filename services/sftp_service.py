@@ -16,17 +16,14 @@ def download_from_server(host: str, username: str, password: str, directory: str
     if conn_type.lower() == "ftps":
         port = port or 990
         client = FTP_TLS()
-
-
         client.connect(host, port, timeout=30)
     
-        # 🔹 Solo usa auth() si es FTPS explícito (puerto 21)
-        if port == 21:
-            client.auth()
-    
+        # ⚠️ IMPORTANTE: siempre llamar a auth(), ya que tu servidor lo requiere incluso en 990
+        client.auth()
         client.login(username, password)
         client.prot_p()
         client.cwd(directory)
+    
         archivos = client.nlst()
 
         def get_mod_time(f):
