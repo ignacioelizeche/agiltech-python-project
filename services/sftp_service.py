@@ -17,13 +17,13 @@ def download_from_server(host: str, username: str, password: str, directory: str
         port = port or 990
         client = FTP_TLS()
 
-        # FTPS implícito (puerto 990) o explícito (21)
-        if port == 990:
-            client.connect(host, port, timeout=30)
-        else:
-            client.connect(host, port, timeout=30)
-            client.auth()  # solo explícito
 
+        client.connect(host, port, timeout=30)
+    
+        # 🔹 Solo usa auth() si es FTPS explícito (puerto 21)
+        if port == 21:
+            client.auth()
+    
         client.login(username, password)
         client.prot_p()
         client.cwd(directory)
