@@ -1,4 +1,5 @@
-import os, zipfile
+import os
+import zipfile
 from io import BytesIO
 from datetime import datetime
 from typing import List
@@ -7,31 +8,30 @@ import paramiko
 from ftplib import FTP_TLS
 
 def download_from_server(host: str, username: str, password: str, directory: str,
-                         download_path: str, filename_startswith: List[str] = [],
+                         download_path: str, filename_startswith: List[str] = None,
                          from_date: str = "", port: int = None, conn_type: str = "sftp") -> BytesIO:
+    filename_startswith = filename_startswith or []
     os.makedirs(download_path, exist_ok=True)
     seleccionados = []
 
-    # Conexión y listado de archivos
     if conn_type.lower() == "ftps":
         port = port or 990
-        client = FTP_TLS()
-        client.connect(host, port, timeout=30)
-    
-        # ⚠️ IMPORTANTE: siempre llamar a auth(), ya que tu servidor lo requiere incluso en 990
-        client.auth()
-        client.login(username, password)
-        client.prot_p()
-        client.cwd(directory)
-    
-        archivos = client.nlst()
+        ftps = FTP_TLS()
+        # Igual que tu versión que funcionaba
+        ftps.connect(host, port, timeout=30)
+        ftps.auth()  # siempre
+        ftps.login(username, password)
+        ftps.prot_p()
+        ftps.cwd(directory)
+
+        archivos = ftps.nlst()
 
         def get_mod_time(f):
-            mdtm = client.sendcmd(f"MDTM {f}")
+            mdtm = ftps.sendcmd(f"MDTM {f}")
             return datetime.strptime(mdtm[4:], "%Y%m%d%H%M%S")
 
-        download_func = lambda f, path: client.retrbinary(f"RETR {f}", open(path, "wb").write)
-        close_func = client.quit
+        download_func = lambda f, path: ftps.retrbinary(f"RETR {f}", open(path, "wb").write)
+        close_func = ftps.quit
 
     elif conn_type.lower() == "sftp":
         port = port or 22
