@@ -42,3 +42,16 @@ async def server_copy(request: ServerRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+try:
+    from services import ftp_rest as _ftp_rest
+    # Include the router so routes appear in the main app's docs under the prefix /ftp
+    if hasattr(_ftp_rest, "router"):
+        app.include_router(_ftp_rest.router, prefix="/ftp")
+    else:
+        # fallback to mount the sub-app if router not present
+        app.mount("/ftp", _ftp_rest.app)
+except Exception:
+    # If import fails, keep the original app functional; import errors will surface at runtime.
+    pass
